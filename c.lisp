@@ -142,10 +142,45 @@
         (if leavemostlyalone
             (string-downcase s)
 	(if (numeric-string s) s
-	    (if (eq (char s 0) #\!) (replace-char #\- #\_ (cof (subseq s 1)))
-         (if (eq (char s 0) #\=) (camelcase-c (cof (subseq s 1)))
-         (if (eq (char s 0) #\-) (Lcamelcase-c (cof (subseq s 1)))
-		(replace-char #\- #\_ (string-downcase s))))))))))
+      (str-to-sym s))))))
+
+(defun symify (s)
+  (if (< (length s) 1) ""
+    (case (char s 0)
+      (#\! (replace-char #\- #\_ (string-upcase (substring s 1))))
+      (#\~ (replace-char #\- #\_ (string-downcase (substring s 1))))
+      (#\/ (concatenate 'string "_" (camelcase-c (substring s 1))))
+      (#\: (concatenate 'string "_" (lcamelcase-c (substring s 1))))
+      (otherwise (replace-char #\- #\_ s))
+      )))
+
+(defun special-sym-char-p (char)
+  (case char
+    (#\! t)
+    (#\~ t)
+    (#\/ t)
+    (#\: t)
+    (otherwise nil)))
+
+(defun str-to-sym (s)
+  (with-output-to-string (stream)
+    (let ((current-sym nil))
+      (loop for char across s
+            when (special-sym-char-p char)
+            do (progn
+                 (format stream "~a" (symify (coerce current-sym 'string)))
+                 (setf current-sym nil))
+            collect char into current-sym
+            finally (format stream "~a" (symify (coerce current-sym 'string)))))))
+
+;(defun c-symify (x &optional leavemostlyalone)
+;  (if (stringp x) x
+;      (let ((s (strof x)))
+;        (if leavemostlyalone (string-downcase s)
+;            (if (numeric-string s) s
+;                (loop for char across s
+;                      until (eq
+;
 
 (defmacro sethash (k v hash)
   `(setf (gethash ,k ,hash) ,v))
@@ -265,7 +300,7 @@
   `(progn ,@(mapcar #'(lambda (def) `(cfun ,@def)) defs)))
 
 (defun c (&rest xs)
-  (format nil "~{~a~^~(;~%~%~)~}" (mapcar #'cof xs)))
+  (format nil "~{~@[~a~^~(~%~%~)~]~}" (mapcar #'cof xs)))
 
 (defun pc (&rest xs)
   (format t "~a" (apply #'c xs)))
@@ -389,7 +424,7 @@
                         (#\- (apply #'lcamelcase-c (strof (symtrim (car x) 1)) (mapcar #'strof (cdr x))))
                         (otherwise (apply (cnym (car x)) (cdr x))))
                   (apply (cnym (car x)) (cdr x)))
-              (format nil "~{~a~^~(;~%~)~}" (mapcar #'cof x))))))
+              (format nil "~{~a~^~(~%~)~}" (mapcar #'cof x))))))
 
 (defmacro cofy (x) `(setf ,x (cof ,x)))
 (defmacro cofsy (x) `(setf ,x (mapcar #'cof (f/list ,x))))
@@ -636,7 +671,7 @@
 	  (format nil "#include ~a~a~a~%" (if local #\" #\<) filename (if local #\" #\>)))
  (import (filename)
 	 (setf filename (if (stringp filename) filename (format nil "~a.cl" (cof filename))))
-	 (progn (c-whole-file filename)) (format nil "/* ~a LOADED */" filename))
+	 (format nil "/* ~a START */ ~%~a~%/* ~a END */" filename (c-whole-file filename) filename))
  (macro (nym &rest xs)
 	(cofy nym)
 	(format nil "~a(~{~a~^,~})" nym (mapcar #'cof (f/list xs))))
@@ -689,12 +724,13 @@
       (progn
         (eval `(cdefun ,f ,llist ,@body))
         (sethash f t *macrolist*)
-        (format nil "/**DEFINED: \"~a\" (lispmacro)**/" f))))
+        nil)))
  
  (lisp/c-macro (nym llist &rest body)
       (progn
         (eval `(lisp/c-macro ,nym ,llist ,@body))
-        (format nil "/**LISP/C MACRO \"~a\"**/" nym)))
+        nil))
+        ;(format nil "/**LISP/C MACRO \"~a\"**/" nym)))
  
  (lambda (llist template &rest args)
   (cof (eval `(apply (replacify-lambda ,llist ,template) ',args))))
@@ -704,7 +740,7 @@
          (apply (replacify-lambda ,vars ,template)
                 (mapcar #'cof args)))))
          (sethash f t *templatelist*)
-         (format nil "/**DEFINED: \"~a\" (template)**/" f) ))
+         nil ))
  (templates (f vars template)
             (progn
               (eval `(cdefun ,f (&rest argss)
