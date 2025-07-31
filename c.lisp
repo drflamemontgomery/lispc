@@ -142,7 +142,7 @@
         (if leavemostlyalone
             (string-downcase s)
 	(if (numeric-string s) s
-      (str-to-sym s))))))
+      (str-to-sym (string-downcase s)))))))
 
 (defun symify (s)
   (if (< (length s) 1) ""
@@ -422,7 +422,10 @@
                         (#\= (apply #'camelcase-c (strof (symtrim (car x) 1)) (mapcar #'strof (cdr x))))
                         (#\% (apply #'lcamelcase-c (strof (symtrim (car x) 1)) (mapcar #'strof (cdr x))))
                         (#\- (apply #'lcamelcase-c (strof (symtrim (car x) 1)) (mapcar #'strof (cdr x))))
-                        (otherwise (apply (cnym (car x)) (cdr x))))
+                        (otherwise ;(if (fboundp (cnym (car x))) 
+                                   ;    (apply (cnym (car x)) (cdr x))
+                                       (apply #'call-c (cof (car x)) (cdr x))
+                                       ))
                   (apply (cnym (car x)) (cdr x)))
               (format nil "~{~a~^~(~%~)~}" (mapcar #'cof x))))))
 
